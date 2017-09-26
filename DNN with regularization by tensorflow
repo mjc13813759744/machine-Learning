@@ -1,0 +1,118 @@
+import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
+from sklearn import datasets
+from tensorflow.python.framework import ops
+
+#data processing
+iris_data = datasets.load_iris()
+x_vals = iris_data.data      #shape(examples,features)
+y_vals = iris_data.target    #shape(examples,)
+x = np.transpose(x_vals)     #shape(features,examples)
+y = tf.one_hot(y_vals,depth=3,axis=0) #one hot coding
+with tf.Session() as sess:
+    y = sess.run(y)
+
+train_indices = np.random.choice(len(x_vals),round(len(x_vals)*0.8),replace=False)
+test_indices = np.array(list(set(range(len(x_vals))) - set(train_indices)))
+x_train = x[:,train_indices]
+x_test = x[:,test_indices]
+y_train = y[:,train_indices]
+y_test = y[:,test_indices]
+
+def initializer_parameters():
+    w1=tf.get_variable("w1",[8,4],initializer=tf.contrib.layers.xavier_initializer(dtype=tf.float32))
+    b1=tf.get_variable("b1",[8,1],initializer=tf.zeros_initializer(dtype=tf.float32))
+    w2=tf.get_variable("w2",[3,8],initializer=tf.contrib.layers.xavier_initializer(dtype=tf.float32))
+    b2=tf.get_variable("b2",[3,1],initializer=tf.zeros_initializer(dtype=tf.float32))
+    parameters={"w1":w1,
+                "b1":b1,
+                "w2":w2,
+                "b2":b2}
+    return parameters
+    
+def layers(w,b,x,actfunction=None):
+    z = tf.add(tf.matmul(w,x),b)
+    # z = tf.nn.dropout(z,dropout) #dropout regularization
+    if actfunction is None:
+        a = z
+    else:
+        a = actfunction(z)
+    return a
+    
+def model(x_train,y_train,x_test,y_test,learning_rate=0.005):
+    ops.reset_default_graph()
+    
+    X_place=tf.placeholder(tf.float32,[4,None])
+    Y_place=tf.placeholder(tf.float32,[3,None])
+    #dropout=tf.placeholder(tf.float32)   #dropout regularlzation
+    
+    parameters=initializer_parameters()
+    w1=parameters["w1"]
+    b1=parameters["b1"]
+    w2=parameters["w2"]
+    b2=parameters["b2"]
+    
+    a1 = layers(w1,b1,X_place,actfunction=tf.nn.relu)
+    z2 = layers(w2,b2,a1)
+    
+    #L2_loss=0.01*(tf.nn.l2_loss(w1)+tf.nn.l2_loss(b1)+tf.nn.l2_loss(w2)+tf.nn.l2_loss(b2)) #L2 regularization
+    
+    cost=tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(logits=tf.transpose(z2),labels=tf.transpose(Y_place))) #+ L2_loss
+    optimizer=tf.train.GradientDescentOptimizer(learning_rate=0.005).minimize(cost)
+   
+    init=tf.global_variables_initializer()
+    
+    with tf.Session() as sess:
+        sess.run(init)
+    
+        train_loss=[]
+        test_loss=[]
+    
+        for epoch in range(1000):
+            _,each_cost=sess.run([optimizer,cost],feed_dict={X_place:x_train,Y_place:y_train})
+            # _,each_cost=sess.run([optimizer,cost],feed_dict={X_place:X_train,Y_place:Y_train,dropout:0.8}) # if use drouout
+            train_loss.append(each_cost)
+            test_cost=sess.run(cost,feed_dict={X_place:x_test,Y_place:y_test})
+            # test_cost=sess.run(cost,feed_dict={X_place:x_test,Y_place:y_test,dropout:1}) # if use dropout
+            test_loss.append(test_cost)
+            if (epoch+1)%50==0:
+                print('epoch'+str(epoch+1)+':cost'+str(each_cost))
+        
+        parameters_new = sess.run(parameters)
+        
+        w1_new=parameters_new["w1"]
+        b1_new=parameters_new["b1"]
+        w2_new=parameters_new["w2"]
+        b2_new=parameters_new["b2"]
+        
+        a1 = layers(w1,b1,tf.to_float(x_test),actfunction=tf.nn.relu)
+        a2 = layers(w2,b2,a1,actfunction=tf.nn.softmax)
+        predict_test=sess.run(a2)
+        
+        a1 = layers(w1,b1,tf.to_float(x_train),actfunction=tf.nn.relu)
+        a2 = layers(w2,b2,a1,actfunction=tf.nn.softmax)
+        predict_train=sess.run(a2)
+        a=0
+        for i in range(120):
+            if np.argmax(predict_train[:,i])==np.argmax(y_train[:,i]):
+                a=a+1
+        print('trainaccury:'+str(a/120))
+        b=0
+        for i in range(30):
+            if np.argmax(predict_test[:,i])==np.argmax(y_test[:,i]):
+                b=b+1
+        print('testaccury:'+str(b/30))
+    return train_loss,test_loss
+    
+train_loss,test_loss = model(x_train,y_train,x_test,y_test)
+
+%matplotlib inline
+# Plot loss (MSE) over time
+plt.plot(train_loss, 'k-', label='Train Loss')
+plt.plot(test_loss, 'r--', label='test Loss')
+plt.title('Loss per Generation')
+plt.legend(loc='upper right')
+plt.xlabel('Generation')
+plt.ylabel('Loss')
+plt.show()
