@@ -1,0 +1,81 @@
+import matplotlib.pyplot as plt
+import numpy as np
+import tensorflow as tf
+from sklearn import datasets
+from tensorflow.python.framework import ops
+
+iris = datasets.load_iris()
+x_vals = iris.data
+y_vals = np.array([1 if y==0 else -1 for y in iris.target]) 
+x = np.transpose(x_vals)
+y = y_vals.reshape((1,-1))
+
+# Split data into train/test sets
+train_indices = np.random.choice(len(x_vals),round(len(x_vals)*0.8),replace=False)
+test_indices = np.array(list(set(range(len(x_vals))) - set(train_indices)))
+x_train = x[:,train_indices]
+x_test = x[:,test_indices]
+y_train = y[:,train_indices]
+y_test = y[:,test_indices]
+
+def model(x_train,y_train,x_test,y_test,learning_rate=0.001):
+    ops.reset_default_graph()
+    
+    X_place = tf.placeholder(tf.float32,[4,None])
+    Y_place = tf.placeholder(tf.float32,[1,None])
+    
+    w = tf.Variable(tf.random_normal(shape=[1,4]))
+    b = tf.Variable(tf.random_normal(shape=[1,1]))
+    
+    a = tf.add(tf.matmul(w,X_place),b) #predict output
+    
+    loss = tf.reduce_mean(tf.maximum(0.,tf.subtract(1.,tf.multiply(a,Y_place))))
+    optimizer = tf.train.GradientDescentOptimizer(learning_rate = learning_rate).minimize(loss)
+    
+    init = tf.global_variables_initializer()
+    
+    with tf.Session() as sess:
+        sess.run(init)
+        train_loss = []
+        test_loss = []
+        
+        for epoch in range(500):
+            _,train_cost = sess.run([optimizer,loss],feed_dict={X_place:x_train,Y_place:y_train})
+            train_loss.append(train_cost)
+            test_cost = sess.run(loss,feed_dict={X_place:x_test,Y_place:y_test})
+            test_loss.append(test_cost)
+            
+            if (epoch+1)%50==0:
+                print('epoch'+str(epoch+1)+':cost'+str(train_cost))
+                
+        w_new = sess.run(w)
+        b_new = sess.run(b)
+        
+        print('w:'+str(w_new) + '   b:'+str(b_new))
+        
+        predict_train = tf.add(tf.matmul(w_new,tf.to_float(x_train)),b_new)
+        predict_test = tf.add(tf.matmul(w_new,tf.to_float(x_test)),b_new)
+        
+        prediction = tf.sign(predict_train)
+        accuracy = tf.reduce_mean(tf.cast(tf.equal(prediction, y_train), tf.float32))
+        train_accuracy = sess.run(accuracy)
+        print('train_accuracy:' + str(train_accuracy))
+        
+        prediction = tf.sign(predict_test)
+        accuracy = tf.reduce_mean(tf.cast(tf.equal(prediction, y_test), tf.float32))
+        test_accuracy = sess.run(accuracy)
+        print('test_accuracy:' + str(test_accuracy))
+        
+    return train_loss,test_loss    
+    
+    train_loss,test_loss = model(x_train,y_train,x_test,y_test)
+    
+    %matplotlib inline
+# Plot loss (MSE) over time
+plt.plot(train_loss, 'k-', label='Train Loss')
+plt.plot(test_loss, 'r--', label='test Loss')
+plt.title('Loss per Generation')
+plt.legend(loc='upper right')
+plt.xlabel('Generation')
+plt.ylabel('Loss')
+plt.show()
