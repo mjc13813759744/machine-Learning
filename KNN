@@ -1,0 +1,50 @@
+import numpy as np  
+import tensorflow as tf  
+from sklearn import datasets  
+  
+iris = datasets.load_iris()  
+x_vals = iris.data  
+y_vals = iris.target  
+  
+#data process  
+x_vals_norm = (x_vals - x_vals.min(0))/(x_vals.max(0) - x_vals.min(0))# data standardization  
+train_indices = np.random.choice(len(x_vals),round(len(x_vals)*0.9),replace=False)  
+test_indices = np.array(list(set(range(len(x_vals))) - set(train_indices)))  
+x_train = x_vals_norm[train_indices,:]  
+x_test = x_vals_norm[test_indices,:]  
+y_train = y_vals[train_indices]  
+y_test = y_vals[test_indices]  
+  
+def distance(x_train,x_test):  
+    dis = np.sum(np.square(x_train - x_test),1)  
+    return dis  
+  
+def class_iris(dis,y_train,k):  
+    a = 0  
+    b = 0  
+    c = 0  
+    for i in range(k):  
+        index = np.argmin(dis)  
+        if y_train[index]==0:  
+            a = a+1  
+        elif y_train[index]==1:  
+            b = b+1  
+        else:  
+            c = c+1  
+        dis[index] = dis.max()  
+    d = np.array([a,b,c])  
+    ans = d.argmax()    
+    return ans  
+  
+def model(x_train,y_train,x_test,y_test,k = 10):  
+    num = x_test.shape[0]  
+    t = 0  
+    for i in range(num):  
+        dis = distance(x_train,x_test[i,:])  
+        ans = class_iris(dis,y_train,k)  
+        if ans == y_test[i]:  
+            t = t+1  
+    accuracy = t/num  
+    print('accurayc:' + str(accuracy))  
+  
+model(x_train,y_train,x_test,y_test)  
