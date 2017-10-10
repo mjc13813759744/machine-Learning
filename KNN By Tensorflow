@@ -1,0 +1,37 @@
+import tensorflow as tf
+import numpy as np
+from sklearn import datasets
+from tensorflow.python.framework import ops
+
+ops.reset_default_graph()
+sess = tf.Session()
+
+iris = datasets.load_iris()
+x_vals = iris.data
+y_vals = iris.target</pre><br>
+
+x_vals_norm = (x_vals - x_vals.min(0)) / x_vals.ptp(0) #min-max scale
+train_indices = np.random.choice(len(x_vals),round(len(x_vals) * 0.8),replace=False)
+test_indices = np.array(list(set(range(len(x_vals))) - set(train_indices)))
+x_train = x_vals_norm[train_indices]
+x_test = x_vals_norm[test_indices]
+y_train = y_vals[train_indices].reshape(-1,1)
+y_test = y_vals[test_indices].reshape(-1,1)</pre><br>
+
+k = 5
+
+X_train = tf.placeholder(tf.float32,[None,x_vals.shape[1]])
+X_test = tf.placeholder(tf.float32,[None,x_vals.shape[1]])
+Y_train = tf.placeholder(tf.float32,[None,1])
+Y_test = tf.placeholder(tf.float32,[None,1])
+
+distance = tf.reduce_sum(tf.abs(tf.subtract(X_train,tf.expand_dims(X_test,1))),2)#L1
+#distance = tf.sqrt(tf.reduce_sum(tf.square(tf.subtract(X_train,tf.expand_dims(X_test,1))),2)) #L2
+
+top_k_vals, top_k_indices = tf.nn.top_k(tf.negative(distance),k=k)
+top_k_yvals = tf.squeeze(tf.gather(Y_train,top_k_indices))
+predict=tf.reduce_mean(tf.cast(tf.equal(tf.matmul(Y_test,tf.ones([1,k],tf.float32)),top_k_yvals),dtype=tf.float32),1)
+predict = tf.reduce_mean(tf.cast(predict>=0.5,dtype=tf.float32))</pre><br>
+predictions = sess.run(predict, feed_dict={X_train: x_train, X_test: x_test,
+                                         Y_train: y_train, Y_test: y_test})
+print('accuracy:' + str(predictions))
